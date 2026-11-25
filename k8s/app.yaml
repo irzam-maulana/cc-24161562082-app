@@ -1,0 +1,117 @@
+
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nim-24161562082
+---
+# Deployment Database
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  namespace: nim-24161562082
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - name: POSTGRES_USER
+              value: app
+            - name: POSTGRES_PASSWORD
+              value: latihan
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, app]
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+# Service Database
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: nim-24161562082
+spec:
+  selector:
+    app: db
+  ports:
+    - port: 5432
+---
+# Deployment Web
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: nim-24161562082
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: cc-nim-app:1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_URL
+              value: postgresql://app:latihan@db:5432/app
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 245m
+              memory: 128Mi
+---
+# Service Web
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: nim-24161562082
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 8080
